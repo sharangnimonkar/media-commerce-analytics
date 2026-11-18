@@ -1,0 +1,78 @@
+// ============================================================
+// Brightleaf Retail Media & Digital Shelf - DAX measures
+// Create a blank table called _Measures and add each measure.
+// Tables come from data/processed/*.csv (see powerbi/README.md).
+// ============================================================
+
+// ---------- Sales
+Total Sales = SUM ( fact_sales[revenue] )
+Total Units = SUM ( fact_sales[units] )
+Sales PY Month = CALCULATE ( [Total Sales], DATEADD ( dim_date[date], -1, MONTH ) )
+Sales MoM % = DIVIDE ( [Total Sales] - [Sales PY Month], [Sales PY Month] )
+
+// ---------- Media (ratios of sums, never averages of daily ratios)
+Impressions = SUM ( fact_media[impressions] )
+Clicks = SUM ( fact_media[clicks] )
+Ad Spend = SUM ( fact_media[spend] )
+Conversions = SUM ( fact_media[conversions] )
+Ad Sales = SUM ( fact_media[ad_sales] )
+CTR = DIVIDE ( [Clicks], [Impressions] )
+CPC = DIVIDE ( [Ad Spend], [Clicks] )
+CPM = DIVIDE ( [Ad Spend], [Impressions] ) * 1000
+CVR = DIVIDE ( [Conversions], [Clicks] )
+ROAS = DIVIDE ( [Ad Sales], [Ad Spend] )
+ACoS = DIVIDE ( [Ad Spend], [Ad Sales] )
+TACoS = DIVIDE ( [Ad Spend], [Total Sales] )
+ROAS Target = 3.0
+ROAS vs Target = [ROAS] - [ROAS Target]
+
+// Spend that ran while the SKU was out of stock (joins media to shelf at date x retailer x SKU)
+OOS Ad Spend =
+SUMX (
+    fact_media,
+    VAR d = fact_media[date]
+    VAR r = fact_media[retailer_id]
+    VAR s = fact_media[sku]
+    VAR inStock =
+        CALCULATE (
+            MAX ( fact_shelf[in_stock] ),
+            REMOVEFILTERS ( fact_shelf ),
+            fact_shelf[date] = d, fact_shelf[retailer_id] = r, fact_shelf[sku] = s
+        )
+    RETURN IF ( inStock = FALSE (), fact_media[spend] )
+)
+OOS Spend % = DIVIDE ( [OOS Ad Spend], [Ad Spend] )
+
+// ---------- Digital shelf
+Availability % = AVERAGEX ( fact_shelf, IF ( fact_shelf[in_stock], 1, 0 ) )
+Avg Organic Rank = AVERAGE ( fact_shelf[organic_rank] )
+Avg Paid Rank = AVERAGE ( fact_shelf[paid_rank] )
+% Days Top 10 = DIVIDE ( COUNTROWS ( FILTER ( fact_shelf, fact_shelf[organic_rank] <= 10 ) ), COUNTROWS ( fact_shelf ) )
+% Days Top 3 = DIVIDE ( COUNTROWS ( FILTER ( fact_shelf, fact_shelf[organic_rank] <= 3 ) ), COUNTROWS ( fact_shelf ) )
+Avg Content Score = AVERAGE ( fact_shelf[content_score] )
+Avg Rating = AVERAGE ( fact_shelf[rating] )
+Price Index = AVERAGE ( fact_shelf[price_index] )
+Promo Day % = AVERAGEX ( fact_shelf, IF ( fact_shelf[on_promo], 1, 0 ) )
+
+// ---------- Share of Search (weekly top-10 snapshots; positions 1-3 sponsored)
+Search Slots = COUNTROWS ( fact_search )
+Brand Slots = CALCULATE ( COUNTROWS ( fact_search ), fact_search[is_brand] = TRUE () )
+Share of Search = DIVIDE ( [Brand Slots], [Search Slots] )
+Paid SoS =
+DIVIDE (
+    CALCULATE ( [Brand Slots], fact_search[sponsored] = TRUE () ),
+    CALCULATE ( [Search Slots], fact_search[sponsored] = TRUE () )
+)
+Organic SoS =
+DIVIDE (
+    CALCULATE ( [Brand Slots], fact_search[sponsored] = FALSE () ),
+    CALCULATE ( [Search Slots], fact_search[sponsored] = FALSE () )
+)
+
+// ---------- RAG status for the scorecard (use with conditional formatting > Field value)
+RAG Colour ROAS =
+SWITCH ( TRUE (), [ROAS] >= 3.0, "#C6EFCE", [ROAS] >= 2.7, "#FFEB9C", "#FFC7CE" )
+RAG Colour Availability =
+SWITCH ( TRUE (), [Availability %] >= 0.95, "#C6EFCE", [Availability %] >= 0.855, "#FFEB9C", "#FFC7CE" )
+RAG Colour SoS =
+SWITCH ( TRUE (), [Share of Search] >= 0.25, "#C6EFCE", [Share of Search] >= 0.225, "#FFEB9C", "#FFC7CE" )

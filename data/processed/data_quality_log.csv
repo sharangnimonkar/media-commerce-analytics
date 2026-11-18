@@ -1,0 +1,7 @@
+source,issue,rows_affected
+media_megastore_online.csv,exact duplicate rows removed,119
+media_megastore_online.csv,negative impressions removed,12
+media_megastore_online.csv,missing sales set to 0 (no attributed orders),30
+digital_shelf_export.csv,retailer names standardised (13 spellings -> 4 retailers),16294
+digital_shelf_export.csv,duplicate daily captures removed,117
+digital_shelf_export.csv,missing ratings filled from previous capture,467
